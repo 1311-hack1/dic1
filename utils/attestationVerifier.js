@@ -196,11 +196,22 @@ g+xSFvPjFSjjFwSNGBrZaNKGqMnWHMXR3TMLMXVMoKHG4YKGp7dT1O4aAVv+WQ==
                       if (oid.startsWith('0.')) {
                         const parts = oid.split('.');
                         if (parts.length >= 3) {
+                          // Check for Android attestation OID pattern: 0.6.10.43.6.1.4.1.11129.2.1.17
+                          if (parts[1] === '6' && parts[2] === '10' && parts[3] === '43' && parts.length > 4 && parts[4] === '6') {
+                            // This is 0.6.10.43.6.1.4.1.11129.2.1.17 -> should be 1.3.6.1.4.1.11129.2.1.17
+                            oid = '1.3.' + parts.slice(4).join('.');
+                            console.log(`Extension ${extIndex + 1}: Corrected Android attestation OID from ${parts.join('.')} to ${oid}`);
+                          }
                           // Check for Android attestation OID pattern: 0.10.43.6.1.4.1.11129.2.1.17
-                          if (parts[1] === '10' && parts[2] === '43' && parts[3] === '6') {
+                          else if (parts[1] === '10' && parts[2] === '43' && parts[3] === '6') {
                             // This is 0.10.43.6.1.4.1.11129.2.1.17 -> should be 1.3.6.1.4.1.11129.2.1.17
                             oid = '1.3.' + parts.slice(3).join('.');
                             console.log(`Extension ${extIndex + 1}: Corrected Android attestation OID to ${oid}`);
+                          }
+                          // Check for X.509 extensions: 0.6.3.85.29.X -> 2.5.29.X
+                          else if (parts[1] === '6' && parts[2] === '3' && parts[3] === '85' && parts.length > 4 && parts[4] === '29') {
+                            oid = '2.5.29.' + parts.slice(5).join('.');
+                            console.log(`Extension ${extIndex + 1}: Corrected X.509 OID from ${parts.join('.')} to ${oid}`);
                           }
                           // Check for other standard X.509 extensions: 0.3.85.29.X -> 2.5.29.X
                           else if (parts[1] === '3' && parts[2] === '85' && parts[3] === '29') {
@@ -365,8 +376,9 @@ g+xSFvPjFSjjFwSNGBrZaNKGqMnWHMXR3TMLMXVMoKHG4YKGp7dT1O4aAVv+WQ==
         const oid = ext.id || ext.oid;
         // Check for both correct OID and common parsing variations
         if (oid === ATTESTATION_OID || 
-            oid === '0.10.43.6.1.4.1.11129.2.1.17' || // Actual parsing artifact we see
-            oid === '10.43.6.1.4.1.11129.2.1.17') {   // Another variation
+            oid === '0.6.10.43.6.1.4.1.11129.2.1.17' || // Actual pattern we see in logs
+            oid === '0.10.43.6.1.4.1.11129.2.1.17' ||   // Alternative pattern
+            oid === '10.43.6.1.4.1.11129.2.1.17') {     // Another variation
           console.log(`✅ Found attestation extension in certificate ${i + 1} (leaf->root order) with OID: ${oid}`);
           return { cert, ext, index: i };
         }
@@ -387,8 +399,9 @@ g+xSFvPjFSjjFwSNGBrZaNKGqMnWHMXR3TMLMXVMoKHG4YKGp7dT1O4aAVv+WQ==
         const oid = ext.id || ext.oid;
         // Check for both correct OID and common parsing variations
         if (oid === ATTESTATION_OID || 
-            oid === '0.10.43.6.1.4.1.11129.2.1.17' || // Actual parsing artifact we see
-            oid === '10.43.6.1.4.1.11129.2.1.17') {   // Another variation
+            oid === '0.6.10.43.6.1.4.1.11129.2.1.17' || // Actual pattern we see in logs
+            oid === '0.10.43.6.1.4.1.11129.2.1.17' ||   // Alternative pattern
+            oid === '10.43.6.1.4.1.11129.2.1.17') {     // Another variation
           console.log(`✅ Found attestation extension in certificate ${i + 1} (root->leaf order) with OID: ${oid}`);
           return { cert, ext, index: i };
         }
