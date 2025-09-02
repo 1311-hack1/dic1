@@ -148,9 +148,12 @@ g+xSFvPjFSjjFwSNGBrZaNKGqMnWHMXR3TMLMXVMoKHG4YKGp7dT1O4aAVv+WQ==
   /**
    * Extract extensions from ASN.1 certificate structure
    * Helper method for EC certificates that forge can't parse fully
+   * Enhanced to better find Android attestation extensions
    */
   extractExtensionsFromAsn1(cert, asn1Cert) {
     try {
+      console.log('Extracting extensions from ASN.1 certificate...');
+      
       // Navigate ASN.1 structure: Certificate -> TBSCertificate -> Extensions
       const tbsCert = asn1Cert.value[0];
       
@@ -160,12 +163,17 @@ g+xSFvPjFSjjFwSNGBrZaNKGqMnWHMXR3TMLMXVMoKHG4YKGp7dT1O4aAVv+WQ==
         
         // Extensions are typically in a context-specific tag [3]
         if (field.tagClass === forge.asn1.Class.CONTEXT_SPECIFIC && field.type === 3) {
+          console.log('Found extensions field in certificate');
           const extensionsSeq = field.value[0]; // SEQUENCE OF Extension
           
           if (extensionsSeq && extensionsSeq.value) {
-            extensionsSeq.value.forEach(extAsn1 => {
+            console.log(`Processing ${extensionsSeq.value.length} extensions`);
+            
+            extensionsSeq.value.forEach((extAsn1, extIndex) => {
               try {
                 const oid = forge.asn1.derToOid(extAsn1.value[0]);
+                console.log(`Extension ${extIndex + 1}: OID = ${oid}`);
+                
                 let critical = false;
                 let valueIndex = 1;
                 
@@ -177,20 +185,30 @@ g+xSFvPjFSjjFwSNGBrZaNKGqMnWHMXR3TMLMXVMoKHG4YKGp7dT1O4aAVv+WQ==
                 
                 const value = extAsn1.value[valueIndex];
                 
-                cert.extensions.push({
+                const extension = {
                   id: oid,
                   oid: oid,
                   critical: critical,
                   value: value
-                });
+                };
+                
+                cert.extensions.push(extension);
+                
+                // Special handling for Android attestation extension
+                if (oid === ATTESTATION_OID) {
+                  console.log(`✅ Found Android attestation extension: ${ATTESTATION_OID}`);
+                }
+                
               } catch (extParseError) {
-                console.log(`Warning: Could not parse extension: ${extParseError.message}`);
+                console.log(`Warning: Could not parse extension ${extIndex + 1}: ${extParseError.message}`);
               }
             });
           }
           break;
         }
       }
+      
+      console.log(`Certificate now has ${cert.extensions.length} extensions`);
     } catch (error) {
       console.log(`Warning: Extension extraction failed: ${error.message}`);
     }
@@ -256,19 +274,68 @@ g+xSFvPjFSjjFwSNGBrZaNKGqMnWHMXR3TMLMXVMoKHG4YKGp7dT1O4aAVv+WQ==
 
   /**
    * Find first certificate with attestation extension (closest to root)
+   * Enhanced with better debugging for EC certificates
    */
   findFirstAttestationCert(forgeCerts) {
-    // Iterate from root to leaf to find first occurrence
-    for (let i = forgeCerts.length - 1; i >= 0; i--) {
+    console.log(`Searching for attestation extension in ${forgeCerts.length} certificates...`);
+    console.log(`Looking for OID: ${ATTESTATION_OID}`);
+    
+    // First, try searching from leaf to root (most common for Android attestation)
+    console.log('Searching from leaf to root...');
+    for (let i = 0; i < forgeCerts.length; i++) {
       const cert = forgeCerts[i];
-      if (!cert.extensions) continue;
+      console.log(`Certificate ${i + 1} (leaf->root): has ${cert.extensions ? cert.extensions.length : 0} extensions`);
+      
+      if (!cert.extensions || cert.extensions.length === 0) {
+        console.log(`Certificate ${i + 1}: No extensions found`);
+        continue;
+      }
+      
+      // Log all extensions in this certificate
+      cert.extensions.forEach((ext, extIndex) => {
+        const oid = ext.id || ext.oid;
+        console.log(`  Extension ${extIndex + 1}: OID = ${oid}`);
+        if (oid === ATTESTATION_OID) {
+          console.log(`  *** This is the Android attestation extension! ***`);
+        }
+      });
       
       for (const ext of cert.extensions) {
         if (ext.id === ATTESTATION_OID || ext.oid === ATTESTATION_OID) {
+          console.log(`✅ Found attestation extension in certificate ${i + 1} (leaf->root order)`);
           return { cert, ext, index: i };
         }
       }
     }
+    
+    // Then try searching from root to leaf (original order)
+    console.log('Searching from root to leaf...');
+    for (let i = forgeCerts.length - 1; i >= 0; i--) {
+      const cert = forgeCerts[i];
+      console.log(`Certificate ${i + 1} (root->leaf): has ${cert.extensions ? cert.extensions.length : 0} extensions`);
+      
+      if (!cert.extensions || cert.extensions.length === 0) {
+        continue;
+      }
+      
+      for (const ext of cert.extensions) {
+        if (ext.id === ATTESTATION_OID || ext.oid === ATTESTATION_OID) {
+          console.log(`✅ Found attestation extension in certificate ${i + 1} (root->leaf order)`);
+          return { cert, ext, index: i };
+        }
+      }
+    }
+    
+    console.log('❌ No attestation extension found in any certificate');
+    console.log('Available OIDs in chain:');
+    forgeCerts.forEach((cert, certIndex) => {
+      if (cert.extensions) {
+        cert.extensions.forEach(ext => {
+          console.log(`  Cert ${certIndex + 1}: ${ext.id || ext.oid}`);
+        });
+      }
+    });
+    
     return null;
   }
 
