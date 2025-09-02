@@ -156,61 +156,81 @@ g+xSFvPjFSjjFwSNGBrZaNKGqMnWHMXR3TMLMXVMoKHG4YKGp7dT1O4aAVv+WQ==
       
       // Navigate ASN.1 structure: Certificate -> TBSCertificate -> Extensions
       const tbsCert = asn1Cert.value[0];
+      console.log(`TBS Certificate has ${tbsCert.value.length} fields`);
       
-      // Look for extensions (usually the last field in TBS certificate)
-      for (let i = tbsCert.value.length - 1; i >= 0; i--) {
+      // Look for extensions in all fields, not just the last one
+      for (let i = 0; i < tbsCert.value.length; i++) {
         const field = tbsCert.value[i];
+        console.log(`Field ${i}: tagClass=${field.tagClass}, type=${field.type}, constructed=${field.constructed}`);
         
-        // Extensions are typically in a context-specific tag [3]
+        // Extensions are in a context-specific tag [3]
         if (field.tagClass === forge.asn1.Class.CONTEXT_SPECIFIC && field.type === 3) {
-          console.log('Found extensions field in certificate');
-          const extensionsSeq = field.value[0]; // SEQUENCE OF Extension
+          console.log(`Found extensions field at position ${i}`);
           
-          if (extensionsSeq && extensionsSeq.value) {
-            console.log(`Processing ${extensionsSeq.value.length} extensions`);
+          // Extensions field contains a SEQUENCE OF Extension
+          if (field.value && field.value.length > 0) {
+            const extensionsSeq = field.value[0]; // SEQUENCE OF Extension
             
-            extensionsSeq.value.forEach((extAsn1, extIndex) => {
-              try {
-                const oid = forge.asn1.derToOid(extAsn1.value[0]);
-                console.log(`Extension ${extIndex + 1}: OID = ${oid}`);
-                
-                let critical = false;
-                let valueIndex = 1;
-                
-                // Check if critical field is present
-                if (extAsn1.value[1] && extAsn1.value[1].type === forge.asn1.Type.BOOLEAN) {
-                  critical = extAsn1.value[1].value.charCodeAt(0) !== 0;
-                  valueIndex = 2;
+            if (extensionsSeq && extensionsSeq.value) {
+              console.log(`Processing ${extensionsSeq.value.length} extensions`);
+              
+              extensionsSeq.value.forEach((extAsn1, extIndex) => {
+                try {
+                  console.log(`Processing extension ${extIndex + 1}...`);
+                  
+                  // Extension structure: SEQUENCE { extnID OBJECT IDENTIFIER, critical BOOLEAN OPTIONAL, extnValue OCTET STRING }
+                  if (!extAsn1.value || extAsn1.value.length < 2) {
+                    console.log(`Extension ${extIndex + 1}: Invalid structure`);
+                    return;
+                  }
+                  
+                  const oid = forge.asn1.derToOid(extAsn1.value[0]);
+                  console.log(`Extension ${extIndex + 1}: OID = ${oid}`);
+                  
+                  let critical = false;
+                  let valueIndex = 1;
+                  
+                  // Check if critical field is present
+                  if (extAsn1.value.length > 2 && extAsn1.value[1].type === forge.asn1.Type.BOOLEAN) {
+                    critical = extAsn1.value[1].value.charCodeAt(0) !== 0;
+                    valueIndex = 2;
+                    console.log(`Extension ${extIndex + 1}: critical = ${critical}`);
+                  }
+                  
+                  const value = extAsn1.value[valueIndex];
+                  
+                  const extension = {
+                    id: oid,
+                    oid: oid,
+                    critical: critical,
+                    value: value
+                  };
+                  
+                  cert.extensions.push(extension);
+                  
+                  // Special handling for Android attestation extension
+                  if (oid === ATTESTATION_OID) {
+                    console.log(`✅ Found Android attestation extension: ${ATTESTATION_OID}`);
+                  }
+                  
+                } catch (extParseError) {
+                  console.log(`Warning: Could not parse extension ${extIndex + 1}: ${extParseError.message}`);
                 }
-                
-                const value = extAsn1.value[valueIndex];
-                
-                const extension = {
-                  id: oid,
-                  oid: oid,
-                  critical: critical,
-                  value: value
-                };
-                
-                cert.extensions.push(extension);
-                
-                // Special handling for Android attestation extension
-                if (oid === ATTESTATION_OID) {
-                  console.log(`✅ Found Android attestation extension: ${ATTESTATION_OID}`);
-                }
-                
-              } catch (extParseError) {
-                console.log(`Warning: Could not parse extension ${extIndex + 1}: ${extParseError.message}`);
-              }
-            });
+              });
+            } else {
+              console.log('Extensions sequence is empty or invalid');
+            }
+          } else {
+            console.log('Extensions field has no value');
           }
-          break;
+          break; // Found extensions field, no need to continue
         }
       }
       
-      console.log(`Certificate now has ${cert.extensions.length} extensions`);
+      console.log(`Certificate processing complete. Final extension count: ${cert.extensions.length}`);
     } catch (error) {
       console.log(`Warning: Extension extraction failed: ${error.message}`);
+      console.log(`Error stack: ${error.stack}`);
     }
   }
 
