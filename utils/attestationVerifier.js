@@ -184,7 +184,21 @@ g+xSFvPjFSjjFwSNGBrZaNKGqMnWHMXR3TMLMXVMoKHG4YKGp7dT1O4aAVv+WQ==
                     return;
                   }
                   
-                  const oid = forge.asn1.derToOid(extAsn1.value[0]);
+                  // Extract OID - need to handle the ASN.1 structure properly
+                  let oid;
+                  try {
+                    const oidField = extAsn1.value[0];
+                    if (oidField.type === forge.asn1.Type.OID) {
+                      // Convert ASN.1 OID to string format
+                      oid = forge.asn1.derToOid(forge.asn1.toDer(oidField));
+                    } else {
+                      throw new Error(`Expected OID field, got type ${oidField.type}`);
+                    }
+                  } catch (oidError) {
+                    console.log(`Extension ${extIndex + 1}: OID parsing failed: ${oidError.message}`);
+                    return;
+                  }
+                  
                   console.log(`Extension ${extIndex + 1}: OID = ${oid}`);
                   
                   let critical = false;
@@ -215,6 +229,7 @@ g+xSFvPjFSjjFwSNGBrZaNKGqMnWHMXR3TMLMXVMoKHG4YKGp7dT1O4aAVv+WQ==
                   
                 } catch (extParseError) {
                   console.log(`Warning: Could not parse extension ${extIndex + 1}: ${extParseError.message}`);
+                  console.log(`Extension parse error stack: ${extParseError.stack}`);
                 }
               });
             } else {
