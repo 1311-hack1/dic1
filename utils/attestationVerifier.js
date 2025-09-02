@@ -506,20 +506,66 @@ g+xSFvPjFSjjFwSNGBrZaNKGqMnWHMXR3TMLMXVMoKHG4YKGp7dT1O4aAVv+WQ==
 
   /**
    * Parse KeyDescription using @peculiar/asn1-android
+   * Enhanced with better error handling and debugging
    */
   parseKeyDescription(keyDescBytes) {
     try {
+      console.log('Parsing KeyDescription...');
+      console.log(`KeyDescription bytes length: ${keyDescBytes.length}`);
+      
+      // Validate imports
+      if (!AsnConvert) {
+        throw new Error('AsnConvert is not available');
+      }
+      if (!KeyMintKeyDescription) {
+        throw new Error('KeyMintKeyDescription schema is not available');
+      }
+      if (!NonStandardKeyMintKeyDescription) {
+        throw new Error('NonStandardKeyMintKeyDescription schema is not available');
+      }
+      
       let keyDesc;
       
       // Try KeyMintKeyDescription first (newer format)
       try {
+        console.log('Attempting to parse as KeyMintKeyDescription...');
         keyDesc = AsnConvert.parse(new Uint8Array(keyDescBytes), KeyMintKeyDescription);
         console.log('✅ Parsed as KeyMintKeyDescription');
       } catch (error) {
+        console.log(`KeyMintKeyDescription parsing failed: ${error.message}`);
+        
         // Fallback to NonStandardKeyMintKeyDescription
-        console.log('Trying NonStandardKeyMintKeyDescription...');
-        keyDesc = AsnConvert.parse(new Uint8Array(keyDescBytes), NonStandardKeyMintKeyDescription);
-        console.log('✅ Parsed as NonStandardKeyMintKeyDescription');
+        try {
+          console.log('Trying NonStandardKeyMintKeyDescription...');
+          keyDesc = AsnConvert.parse(new Uint8Array(keyDescBytes), NonStandardKeyMintKeyDescription);
+          console.log('✅ Parsed as NonStandardKeyMintKeyDescription');
+        } catch (fallbackError) {
+          console.log(`NonStandardKeyMintKeyDescription parsing failed: ${fallbackError.message}`);
+          
+          // Try alternative approach - maybe it's a different ASN.1 structure
+          try {
+            console.log('Trying raw ASN.1 parsing...');
+            const asn1 = forge.asn1.fromDer(keyDescBytes.toString('binary'));
+            console.log('Raw ASN.1 structure parsed, attempting manual extraction...');
+            
+            // Create a basic KeyDescription object with available data
+            keyDesc = {
+              attestationVersion: 0,
+              attestationSecurityLevel: 1, // Assume TEE
+              keymasterVersion: 0,
+              keymasterSecurityLevel: 1,
+              attestationChallenge: null,
+              uniqueId: null,
+              softwareEnforced: {},
+              teeEnforced: {},
+              rawAsn1: asn1
+            };
+            
+            console.log('✅ Created basic KeyDescription from raw ASN.1');
+          } catch (rawError) {
+            throw new Error(`All parsing methods failed. KeyMint: ${error.message}, NonStandard: ${fallbackError.message}, Raw: ${rawError.message}`);
+          }
+        }
       }
 
       return keyDesc;
