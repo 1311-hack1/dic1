@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DIC Enrollment Test Client</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            background-color: #fafafa;
+        }
+        .section h3 {
+            margin-top: 0;
+            color: #34495e;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        button:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        .success {
+            background-color: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+        textarea {
+            width: 100%;
+            height: 120px;
+            font-family: monospace;
+            font-size: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 4px;
+            word-break: break-all;
+        }
+        .step {
+            margin-bottom: 20px;
+            padding: 15px;
+            border-left: 4px solid #3498db;
+            background-color: #fff;
+        }
+        .step.completed {
+            border-left-color: #27ae60;
+            background-color: #f8fff9;
+        }
+        .step-number {
+            font-weight: bold;
+            color: #3498db;
+        }
+        .completed .step-number {
+            color: #27ae60;
+        }
+        pre {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔐 Device Identity Certificate Enrollment</h1>
+        <p>This test client demonstrates the DIC enrollment flow with Android Key Attestation simulation.</p>
+        
+        <div class="section">
+            <h3>Server Configuration</h3>
+            <label for="serverUrl">Server URL:</label>
+            <input type="text" id="serverUrl" value="http://localhost:3000" style="width: 300px; padding: 8px; margin-left: 10px;">
+        </div>
+
+        <div class="step" id="step1">
+            <div class="step-number">Step 1:</div>
+            <h3>Request Attestation Challenge</h3>
+            <button onclick="requestChallenge()">Request Challenge</button>
+            <div id="challengeResult"></div>
+        </div>
+
+        <div class="step" id="step2">
+            <div class="step-number">Step 2:</div>
+            <h3>Simulate Device Key Generation & Attestation</h3>
+            <p>In a real Android app, this would:</p>
+            <ul>
+                <li>Generate hardware-backed EC P-256 key pair</li>
+                <li>Create attestation with the challenge nonce</li>
+                <li>Return device public key and attestation chain</li>
+            </ul>
+            <button onclick="simulateAttestation()" disabled id="attestBtn">Simulate Attestation</button>
+            <div id="attestationResult"></div>
+        </div>
+
+        <div class="step" id="step3">
+            <div class="step-number">Step 3:</div>
+            <h3>Enroll Device & Receive DIC</h3>
+            <button onclick="enrollDevice()" disabled id="enrollBtn">Enroll Device</button>
+            <div id="enrollmentResult"></div>
+        </div>
+
+        <div class="step" id="step4">
+            <div class="step-number">Step 4:</div>
+            <h3>Verify Issued Certificate</h3>
+            <button onclick="verifyCertificate()" disabled id="verifyBtn">Verify Certificate</button>
+            <div id="verificationResult"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentChallenge = null;
+        let deviceKeyPair = null;
+        let attestationChain = null;
+        let issuedCertificate = null;
+
+        function getServerUrl() {
+            return document.getElementById('serverUrl').value;
+        }
+
+        async function requestChallenge() {
+            try {
+                const response = await fetch(`${getServerUrl()}/api/attestation/challenge`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    currentChallenge = result.challenge;
+                    document.getElementById('step1').classList.add('completed');
+                    document.getElementById('attestBtn').disabled = false;
+                    
+                    document.getElementById('challengeResult').innerHTML = `
+                        <div class="result success">
+                            <strong>✅ Challenge Generated</strong><br>
+                            <strong>Nonce:</strong> ${result.challenge.nonce.substring(0, 16)}...<br>
+                            <strong>Challenge ID:</strong> ${result.challenge.challengeId}<br>
+                            <strong>Expires:</strong> ${new Date(result.challenge.expiresAt).toLocaleString()}
+                        </div>
+                    `;
+                } else {
+                    throw new Error(result.error);
+                }
+            } catch (error) {
+                document.getElementById('challengeResult').innerHTML = `
+                    <div class="result error">
+                        <strong>❌ Error:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function simulateAttestation() {
+            try {
+                // Simulate key generation and attestation
+                // In a real Android app, this would use Android Keystore API
+                
+                const mockDevicePublicKey = `-----BEGIN PUBLIC KEY-----
+MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEMOCK2u1BxQhK7pJ8ZvKvBxzGkqJR
+7FAKE_DEVICE_PUBLIC_KEY_FOR_TESTING_ONLY_NOT_REAL_HARDWARE_BACKED
+k8mGpQnKRJwJ5vBzGkqJR7k8mGpQnKRJwJ5vBzGkqJR7k8mGpQ==
+-----END PUBLIC KEY-----`;
+
+                const mockAttestationChain = `-----BEGIN CERTIFICATE-----
+MIICxjCCAm2gAwIBAgIJAMOCK2u1BxQhMA0GCSqGSIb3DQEBCwUAMHkxCzAJBgNV
+FAKE_ATTESTATION_CERTIFICATE_CHAIN_FOR_TESTING_ONLY_NOT_REAL
+BAYTAlVTMQswCQYDVQQIDAJDQTEWMBQGA1UEBwwNTW91bnRhaW4gVmlldzEUMBIG
+A1UECgwLUGF5UGFsIEluYy4xEzARBgNVBAsMCnNhbmRib3hfYXBpMRQwEgYDVQQD
+DAtGQUtFX0NB==
+-----END CERTIFICATE-----`;
+
+                deviceKeyPair = {
+                    publicKey: mockDevicePublicKey,
+                    privateKey: 'mock-private-key' // Would be hardware-backed
+                };
+
+                attestationChain = mockAttestationChain;
+
+                document.getElementById('step2').classList.add('completed');
+                document.getElementById('enrollBtn').disabled = false;
+
+                document.getElementById('attestationResult').innerHTML = `
+                    <div class="result success">
+                        <strong>✅ Attestation Simulated</strong><br>
+                        <strong>Note:</strong> This is mock data. Real implementation would use Android Keystore API.<br>
+                        <strong>Device Public Key:</strong> Generated (EC P-256)<br>
+                        <strong>Attestation Chain:</strong> Mock chain created<br>
+                        <strong>Challenge Nonce:</strong> ${currentChallenge.nonce.substring(0, 16)}...
+                    </div>
+                `;
+            } catch (error) {
+                document.getElementById('attestationResult').innerHTML = `
+                    <div class="result error">
+                        <strong>❌ Error:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function enrollDevice() {
+            try {
+                const enrollmentRequest = {
+                    devicePublicKeyPem: deviceKeyPair.publicKey,
+                    attestationChainPem: attestationChain,
+                    nonce: currentChallenge.nonce,
+                    deviceInfo: {
+                        model: 'Test Device',
+                        manufacturer: 'Mock Manufacturer',
+                        androidVersion: '13',
+                        securityPatchLevel: '2024-01-01'
+                    }
+                };
+
+                const response = await fetch(`${getServerUrl()}/api/enrollment/enroll`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(enrollmentRequest)
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    issuedCertificate = result.enrollment.deviceIdentityCertificate;
+                    document.getElementById('step3').classList.add('completed');
+                    document.getElementById('verifyBtn').disabled = false;
+                    
+                    document.getElementById('enrollmentResult').innerHTML = `
+                        <div class="result success">
+                            <strong>🎉 Device Enrolled Successfully!</strong><br>
+                            <strong>Device ID:</strong> ${result.enrollment.deviceId}<br>
+                            <strong>Serial Number:</strong> ${result.enrollment.serialNumber}<br>
+                            <strong>Enrollment Time:</strong> ${new Date(result.enrollment.enrollmentTime).toLocaleString()}<br>
+                            <strong>Expires:</strong> ${new Date(result.enrollment.expiresAt).toLocaleString()}<br>
+                            <details style="margin-top: 10px;">
+                                <summary>📜 Device Identity Certificate</summary>
+                                <textarea readonly>${result.enrollment.deviceIdentityCertificate}</textarea>
+                            </details>
+                        </div>
+                    `;
+                } else {
+                    throw new Error(result.error + (result.details ? ': ' + result.details : ''));
+                }
+            } catch (error) {
+                document.getElementById('enrollmentResult').innerHTML = `
+                    <div class="result error">
+                        <strong>❌ Enrollment Failed:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        async function verifyCertificate() {
+            try {
+                const response = await fetch(`${getServerUrl()}/api/enrollment/verify-certificate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ certificatePem: issuedCertificate })
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    document.getElementById('step4').classList.add('completed');
+                    
+                    const verification = result.verification;
+                    document.getElementById('verificationResult').innerHTML = `
+                        <div class="result ${verification.valid ? 'success' : 'error'}">
+                            <strong>${verification.valid ? '✅' : '❌'} Certificate Verification</strong><br>
+                            <strong>Valid:</strong> ${verification.valid ? 'Yes' : 'No'}<br>
+                            <strong>Device ID:</strong> ${verification.deviceId}<br>
+                            <strong>Serial Number:</strong> ${verification.serialNumber}<br>
+                            <strong>Valid From:</strong> ${new Date(verification.notBefore).toLocaleString()}<br>
+                            <strong>Valid Until:</strong> ${new Date(verification.notAfter).toLocaleString()}<br>
+                            <strong>Expired:</strong> ${verification.expired ? 'Yes' : 'No'}<br>
+                            <strong>Not Yet Valid:</strong> ${verification.notYetValid ? 'Yes' : 'No'}
+                        </div>
+                    `;
+                } else {
+                    throw new Error(result.error);
+                }
+            } catch (error) {
+                document.getElementById('verificationResult').innerHTML = `
+                    <div class="result error">
+                        <strong>❌ Verification Failed:</strong> ${error.message}
+                    </div>
+                `;
+            }
+        }
+
+        // Initialize page
+        window.onload = function() {
+            console.log('DIC Enrollment Test Client loaded');
+        };
+    </script>
+</body>
+</html>

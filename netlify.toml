@@ -1,0 +1,36 @@
+[build]
+  command = "npm run build"
+  functions = "netlify/functions"
+  publish = "."
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[[redirects]]
+  from = "/api/get-enroll-nonce"
+  to = "/.netlify/functions/get-enroll-nonce"
+  status = 200
+
+[[redirects]]
+  from = "/api/enroll"
+  to = "/.netlify/functions/enroll"
+  status = 200
+
+[[redirects]]
+  from = "/api/revoke"
+  to = "/.netlify/functions/revoke"
+  status = 200
+
+[[redirects]]
+  from = "/"
+  to = "/test-client/index.html"
+  status = 200
+
+[context.production.environment]
+  NODE_ENV = "production"
+  ATTESTATION_TIMEOUT_MS = "30000"
+  NONCE_EXPIRY_MS = "300000"
+
+[context.deploy-preview.environment]
+  NODE_ENV = "development"
