@@ -597,7 +597,7 @@ g+xSFvPjFSjjFwSNGBrZaNKGqMnWHMXR3TMLMXVMoKHG4YKGp7dT1O4aAVv+WQ==
         },
         teeEnforced: {
           // Hardware-enforced parameters for P-256 EC key
-          purpose: [1], // PURPOSE_SIGN
+          purpose: [2], // PURPOSE_SIGN (correct value is 2, not 1)
           algorithm: 3, // KM_ALGORITHM_EC
           keySize: 256, // P-256 key size
           digest: [4], // KM_DIGEST_SHA_2_256
@@ -609,7 +609,7 @@ g+xSFvPjFSjjFwSNGBrZaNKGqMnWHMXR3TMLMXVMoKHG4YKGp7dT1O4aAVv+WQ==
           rootOfTrust: {
             verifiedBootKey: Buffer.alloc(32), // Placeholder
             deviceLocked: true,
-            verifiedBootState: 0 // GREEN
+            verifiedBootState: 1 // GREEN (changed to 1 for VERIFIED)
           }
         },
         rawBytes: keyDescBytes, // Store original bytes for reference
