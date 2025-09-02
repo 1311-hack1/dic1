@@ -692,7 +692,9 @@ g+xSFvPjFSjjFwSNGBrZaNKGqMnWHMXR3TMLMXVMoKHG4YKGp7dT1O4aAVv+WQ==
       return {
         valid: true,
         attestationData: this.extractAttestationData(keyDesc),
-        certificateChain: forgeCerts.map(cert => forge.pki.certificateToPem(cert))
+        certificateChain: forgeCerts.map(cert => forge.pki.certificateToPem(cert)),
+        devicePublicKey: attestationResult.cert.publicKey || null, // Extract public key from attestation cert
+        attestationCert: attestationResult.cert // Include the full attestation certificate
       };
 
     } catch (error) {

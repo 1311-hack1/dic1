@@ -31,6 +31,12 @@ router.post('/enroll', async (req, res) => {
     }
 
     console.log(`Processing enrollment request with nonceId: ${nonceId}`);
+    console.log('📋 Enrollment request parameters:');
+    console.log(`   - nonceId: ${nonceId}`);
+    console.log(`   - attestationChainPem: ${attestationChainPem ? 'provided' : 'missing'}`);
+    console.log(`   - devicePublicKeyPem: ${devicePublicKeyPem ? 'provided' : 'missing'}`);
+    console.log(`   - csrPem: ${csrPem ? 'provided' : 'missing'}`);
+    console.log(`   - deviceInfo: ${deviceInfo ? JSON.stringify(deviceInfo) : 'missing'}`);
 
     // Step 1: Find and validate nonce by nonceId
     let foundNonce = null;
@@ -97,9 +103,28 @@ router.post('/enroll', async (req, res) => {
     const deviceId = uuidv4();
     const certGenerator = new CertificateGenerator();
     
+    // Handle public key for certificate generation
+    let finalDevicePublicKeyPem = devicePublicKeyPem;
+    
+    if (!finalDevicePublicKeyPem && verificationResult.devicePublicKey) {
+      try {
+        finalDevicePublicKeyPem = forge.pki.publicKeyToPem(verificationResult.devicePublicKey);
+      } catch (keyError) {
+        console.log('Could not extract public key from verification result:', keyError.message);
+      }
+    }
+    
+    if (!finalDevicePublicKeyPem) {
+      console.error('No valid device public key available for certificate generation');
+      return res.status(400).json({
+        success: false,
+        error: 'Device public key is required but not provided or extractable from attestation'
+      });
+    }
+    
     const dicResult = await certGenerator.generateDeviceIdentityCertificate({
       deviceId,
-      devicePublicKeyPem: devicePublicKeyPem || forge.pki.publicKeyToPem(verificationResult.devicePublicKey),
+      devicePublicKeyPem: finalDevicePublicKeyPem,
       attestationData: verificationResult.attestationData,
       csrPem
     });
