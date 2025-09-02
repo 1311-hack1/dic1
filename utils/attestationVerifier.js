@@ -193,15 +193,28 @@ g+xSFvPjFSjjFwSNGBrZaNKGqMnWHMXR3TMLMXVMoKHG4YKGp7dT1O4aAVv+WQ==
                       oid = forge.asn1.derToOid(forge.asn1.toDer(oidField));
                       
                       // Fix common OID parsing issues where extra prefix appears
-                      if (oid.startsWith('0.6.')) {
-                        // Remove the 0.6. prefix and adjust the first two components
+                      if (oid.startsWith('0.')) {
                         const parts = oid.split('.');
-                        if (parts.length >= 4 && parts[0] === '0' && parts[1] === '6') {
-                          // The correct first two components should be derived from parts[2] and parts[3]
-                          const firstComponent = Math.floor(parseInt(parts[2]) / 40);
-                          const secondComponent = parseInt(parts[2]) % 40;
-                          oid = [firstComponent, secondComponent, ...parts.slice(3)].join('.');
-                          console.log(`Extension ${extIndex + 1}: Corrected OID from 0.6.${parts.slice(2).join('.')} to ${oid}`);
+                        if (parts.length >= 3) {
+                          // Check for Android attestation OID pattern: 0.10.43.6.1.4.1.11129.2.1.17
+                          if (parts[1] === '10' && parts[2] === '43' && parts[3] === '6') {
+                            // This is 0.10.43.6.1.4.1.11129.2.1.17 -> should be 1.3.6.1.4.1.11129.2.1.17
+                            oid = '1.3.' + parts.slice(3).join('.');
+                            console.log(`Extension ${extIndex + 1}: Corrected Android attestation OID to ${oid}`);
+                          }
+                          // Check for other standard X.509 extensions: 0.3.85.29.X -> 2.5.29.X
+                          else if (parts[1] === '3' && parts[2] === '85' && parts[3] === '29') {
+                            oid = '2.5.29.' + parts.slice(4).join('.');
+                            console.log(`Extension ${extIndex + 1}: Corrected X.509 OID to ${oid}`);
+                          }
+                          // Generic correction for 0.X pattern
+                          else {
+                            // Remove leading 0. and reconstruct
+                            const firstComponent = Math.floor(parseInt(parts[1]) / 40);
+                            const secondComponent = parseInt(parts[1]) % 40;
+                            oid = [firstComponent, secondComponent, ...parts.slice(2)].join('.');
+                            console.log(`Extension ${extIndex + 1}: Generic OID correction to ${oid}`);
+                          }
                         }
                       }
                     } else {
@@ -352,8 +365,8 @@ g+xSFvPjFSjjFwSNGBrZaNKGqMnWHMXR3TMLMXVMoKHG4YKGp7dT1O4aAVv+WQ==
         const oid = ext.id || ext.oid;
         // Check for both correct OID and common parsing variations
         if (oid === ATTESTATION_OID || 
-            oid === '0.6.10.43.6.1.4.1.11129.2.1.17' || // Common parsing artifact
-            oid === '10.43.6.1.4.1.11129.2.1.17') {     // Another variation
+            oid === '0.10.43.6.1.4.1.11129.2.1.17' || // Actual parsing artifact we see
+            oid === '10.43.6.1.4.1.11129.2.1.17') {   // Another variation
           console.log(`✅ Found attestation extension in certificate ${i + 1} (leaf->root order) with OID: ${oid}`);
           return { cert, ext, index: i };
         }
@@ -374,8 +387,8 @@ g+xSFvPjFSjjFwSNGBrZaNKGqMnWHMXR3TMLMXVMoKHG4YKGp7dT1O4aAVv+WQ==
         const oid = ext.id || ext.oid;
         // Check for both correct OID and common parsing variations
         if (oid === ATTESTATION_OID || 
-            oid === '0.6.10.43.6.1.4.1.11129.2.1.17' || // Common parsing artifact
-            oid === '10.43.6.1.4.1.11129.2.1.17') {     // Another variation
+            oid === '0.10.43.6.1.4.1.11129.2.1.17' || // Actual parsing artifact we see
+            oid === '10.43.6.1.4.1.11129.2.1.17') {   // Another variation
           console.log(`✅ Found attestation extension in certificate ${i + 1} (root->leaf order) with OID: ${oid}`);
           return { cert, ext, index: i };
         }
