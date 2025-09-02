@@ -423,30 +423,72 @@ g+xSFvPjFSjjFwSNGBrZaNKGqMnWHMXR3TMLMXVMoKHG4YKGp7dT1O4aAVv+WQ==
 
   /**
    * Extract KeyDescription bytes from attestation extension
+   * Updated to handle ASN.1 objects from EC certificate parsing
    */
   extractKeyDescriptionBytes(ext) {
     try {
+      console.log('Extracting KeyDescription bytes from attestation extension...');
+      
       // Get extension value (typically OCTET STRING wrapping KeyDescription DER)
       let derBytes;
+      
       if (ext.extnValue) {
         derBytes = ext.extnValue;
+        console.log('Using ext.extnValue');
       } else if (ext.value) {
-        derBytes = ext.value;
+        console.log('Using ext.value, type:', typeof ext.value);
+        
+        // Handle ASN.1 object from our custom parsing
+        if (typeof ext.value === 'object' && ext.value.value !== undefined) {
+          console.log('Extension value is ASN.1 object, extracting bytes...');
+          
+          // Convert ASN.1 object to DER bytes
+          try {
+            derBytes = forge.asn1.toDer(ext.value).getBytes();
+            console.log('Successfully converted ASN.1 object to DER bytes');
+          } catch (asn1Error) {
+            console.log('ASN.1 conversion failed, trying direct value access...');
+            if (ext.value.value) {
+              derBytes = ext.value.value;
+            } else {
+              throw new Error('Cannot extract bytes from ASN.1 object: ' + asn1Error.message);
+            }
+          }
+        } else if (typeof ext.value === 'string') {
+          derBytes = ext.value;
+          console.log('Using string value directly');
+        } else {
+          throw new Error(`Unsupported extension value type: ${typeof ext.value}`);
+        }
       } else {
         throw new Error('Attestation extension has no value');
       }
 
       // Convert to buffer
-      const raw = Buffer.from(derBytes, 'binary');
+      let raw;
+      if (Buffer.isBuffer(derBytes)) {
+        raw = derBytes;
+      } else if (typeof derBytes === 'string') {
+        raw = Buffer.from(derBytes, 'binary');
+      } else {
+        throw new Error(`Cannot convert to buffer, unexpected type: ${typeof derBytes}`);
+      }
+
+      console.log(`Extension value buffer length: ${raw.length} bytes`);
 
       // Try to unwrap OCTET STRING if present
       try {
         const asn1 = forge.asn1.fromDer(raw.toString('binary'));
+        console.log(`ASN.1 parsed: tagClass=${asn1.tagClass}, type=${asn1.type}`);
+        
         if (asn1.tagClass === forge.asn1.Class.UNIVERSAL && 
             asn1.type === forge.asn1.Type.OCTETSTRING) {
           
+          console.log('Found OCTET STRING wrapper, unwrapping...');
           if (typeof asn1.value === 'string') {
-            return Buffer.from(asn1.value, 'binary');
+            const result = Buffer.from(asn1.value, 'binary');
+            console.log(`Unwrapped KeyDescription length: ${result.length} bytes`);
+            return result;
           } else if (Array.isArray(asn1.value) && asn1.value[0]) {
             return Buffer.from(forge.asn1.toDer(asn1.value[0]).getBytes(), 'binary');
           }
