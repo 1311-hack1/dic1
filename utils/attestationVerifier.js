@@ -191,6 +191,19 @@ g+xSFvPjFSjjFwSNGBrZaNKGqMnWHMXR3TMLMXVMoKHG4YKGp7dT1O4aAVv+WQ==
                     if (oidField.type === forge.asn1.Type.OID) {
                       // Convert ASN.1 OID to string format
                       oid = forge.asn1.derToOid(forge.asn1.toDer(oidField));
+                      
+                      // Fix common OID parsing issues where extra prefix appears
+                      if (oid.startsWith('0.6.')) {
+                        // Remove the 0.6. prefix and adjust the first two components
+                        const parts = oid.split('.');
+                        if (parts.length >= 4 && parts[0] === '0' && parts[1] === '6') {
+                          // The correct first two components should be derived from parts[2] and parts[3]
+                          const firstComponent = Math.floor(parseInt(parts[2]) / 40);
+                          const secondComponent = parseInt(parts[2]) % 40;
+                          oid = [firstComponent, secondComponent, ...parts.slice(3)].join('.');
+                          console.log(`Extension ${extIndex + 1}: Corrected OID from 0.6.${parts.slice(2).join('.')} to ${oid}`);
+                        }
+                      }
                     } else {
                       throw new Error(`Expected OID field, got type ${oidField.type}`);
                     }
@@ -336,8 +349,12 @@ g+xSFvPjFSjjFwSNGBrZaNKGqMnWHMXR3TMLMXVMoKHG4YKGp7dT1O4aAVv+WQ==
       });
       
       for (const ext of cert.extensions) {
-        if (ext.id === ATTESTATION_OID || ext.oid === ATTESTATION_OID) {
-          console.log(`✅ Found attestation extension in certificate ${i + 1} (leaf->root order)`);
+        const oid = ext.id || ext.oid;
+        // Check for both correct OID and common parsing variations
+        if (oid === ATTESTATION_OID || 
+            oid === '0.6.10.43.6.1.4.1.11129.2.1.17' || // Common parsing artifact
+            oid === '10.43.6.1.4.1.11129.2.1.17') {     // Another variation
+          console.log(`✅ Found attestation extension in certificate ${i + 1} (leaf->root order) with OID: ${oid}`);
           return { cert, ext, index: i };
         }
       }
@@ -354,8 +371,12 @@ g+xSFvPjFSjjFwSNGBrZaNKGqMnWHMXR3TMLMXVMoKHG4YKGp7dT1O4aAVv+WQ==
       }
       
       for (const ext of cert.extensions) {
-        if (ext.id === ATTESTATION_OID || ext.oid === ATTESTATION_OID) {
-          console.log(`✅ Found attestation extension in certificate ${i + 1} (root->leaf order)`);
+        const oid = ext.id || ext.oid;
+        // Check for both correct OID and common parsing variations
+        if (oid === ATTESTATION_OID || 
+            oid === '0.6.10.43.6.1.4.1.11129.2.1.17' || // Common parsing artifact
+            oid === '10.43.6.1.4.1.11129.2.1.17') {     // Another variation
+          console.log(`✅ Found attestation extension in certificate ${i + 1} (root->leaf order) with OID: ${oid}`);
           return { cert, ext, index: i };
         }
       }
